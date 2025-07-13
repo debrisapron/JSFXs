@@ -1,5 +1,6 @@
+// @version 0.2.0
+// @author Simon Break
 desc:LiveSlice
-//author: Simon Break & Claude 4 Sonnet
 
 slider1:midi_cha=0<0,16,1{All,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI Channel
 slider2:bottom_note_num=48<0,96,1>Bottom Note (48 = C3)
