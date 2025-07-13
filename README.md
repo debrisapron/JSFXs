@@ -2,12 +2,6 @@
 
 A Reaper JSFX effect for slicing live audio with midi control.
 
-## TODO
-
-- Upload to ReaPack
-- ReaPack instructions
-- Forum post
-
 ## Install
 
 With [ReaPack](https://reapack.com/).
