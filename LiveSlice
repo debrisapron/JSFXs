@@ -1,0 +1,204 @@
+desc:LiveSlice
+//author: Simon Break & Claude 4 Sonnet
+
+slider1:midi_cha=0<0,16,1{All,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI Channel
+slider2:bottom_note_num=48<0,96,1>Bottom Note (48 = C3)
+slider3:slice_len_ix=2<0,6,1{1/32,1/24,1/16,1/12,1/8,1/6,1/4}>Slice Length
+slider4:mode=0<0,1,1{note → delay,note → slice}>Mode
+
+in_pin:left input
+in_pin:right input
+out_pin:left output
+out_pin:right output
+
+
+
+@init
+
+// Initialize variables
+NOTE_ON = 0x90;
+NOTE_OFF = 0x80;
+bar_whole_notes = 1.0;
+max_delay_samps = 48000 * 60; // Max 60 seconds at 48kHz
+buf_pos = 0;
+delay_samps = 0;
+whole_note_secs = 0.0;
+whole_note_samps = 0; // Samples per whole note
+delay_whole_notes = 0.0; // Current delay in whole notes
+delay_samps = 0;
+slice_len = 1.0 / 16.0;
+
+slice_values = 1000;
+slice_values[0] = 32.0; // 1/32 note
+slice_values[1] = 24.0; // 1/24 note (triplet 32nd)
+slice_values[2] = 16.0; // 1/16 note
+slice_values[3] = 12.0; // 1/12 note (triplet 16th)
+slice_values[4] = 8.0;  // 1/8 note
+slice_values[5] = 6.0;  // 1/6 note (triplet 8th)
+slice_values[6] = 4.0;  // 1/4 note
+
+// Allocate memory for delay buffers
+buf_left = 2000;
+buf_right = 2000 + max_delay_samps;
+
+// Initialize delay buffers
+memset(buf_left, 0, max_delay_samps);
+memset(buf_right, 0, max_delay_samps);
+
+
+
+function get_delay_samps() (
+  
+  // Get length of a whole note in seconds
+  whole_note_secs = (60 / tempo) * 4;
+  
+  // Convert to samples (whole note delay)
+  whole_note_samps = whole_note_secs * srate;
+  
+  // Calculate actual delay based on MIDI-controlled fraction
+  new_delay_samps = whole_note_samps * delay_whole_notes;
+  
+  // Clamp to reasonable values
+  new_delay_samps = min(new_delay_samps, max_delay_samps - 1);
+  new_delay_samps = max(new_delay_samps, 0); // Allow zero delay
+  new_delay_samps;
+);
+
+
+
+function get_bar_whole_notes() (
+  // Get time signature (default to 4/4 if not available)
+  ts_num > 0 ? ts_num = ts_num : ts_num = 4.0;
+  ts_denom > 0 ? ts_denom = ts_denom : ts_denom = 4.0;
+  
+  // Calculate how many beats make up one bar
+  // In 4/4: 4 beats per bar
+  // In 3/4: 3 beats per bar  
+  // In 6/8: 6 eighth-notes = 3 quarter-note beats per bar
+  (ts_num * (4.0 / ts_denom)) / 4.0;
+);
+
+
+
+// Function to get modulo of two floating point numbers
+function fmod(value, divisor) (
+  divisor == 0 ? 0 : (
+  
+    // This version preserves the sign of the dividend (like C's fmod)
+    value - (value / divisor > 0 ? floor(value / divisor) : ceil(value / divisor)) * divisor
+  );
+);
+
+
+
+function round_to_interval(val, inter) (
+
+  // Handle edge case: if interval is 0, return original value
+  inter == 0
+    ? val
+    : floor(val / inter + 0.5) * inter;
+);
+
+
+
+function get_delay_from_note_on(note_num) (
+
+  // In "note → delay" mode, Delay is simply slice_len * chosen note
+  // In "note → slice" mode, Delay is set to play specified slice of bar
+
+  // Get note or 0
+  note_offset = note_num - bottom_note_num;
+  delay_slices = max(0, note_offset);
+  
+  
+  mode == 1 ? (
+    position_whole_notes = beat_position / 4.0;
+    bar_pos_whole_notes = fmod(position_whole_notes, bar_whole_notes);
+    bar_pos_whole_notes = round_to_interval(bar_pos_whole_notes, slice_len);
+    bar_pos_slices = bar_pos_whole_notes / slice_len;
+    delay_slices = bar_pos_slices - delay_slices;
+    delay_slices < 0 ? (
+      bar_slices = bar_whole_notes / slice_len;
+      delay_slices += bar_slices;
+    )
+  );
+  
+  delay_slices * slice_len;
+);
+
+
+
+function get_delay_from_midi(msg1, msg2, msg3) (
+  new_delay_whole_notes = delay_whole_notes;
+  msg_midi_cha = (msg1 % 16) + 1;
+  msg_is_applicable = midi_cha == 0 || midi_cha == msg_midi_cha;
+  
+  msg_is_applicable ? (
+    msg_status = msg1 & 0xF0;
+    msg_vel = msg3;
+    msg_is_note_on = msg_status == NOTE_ON && msg_vel > 0;
+    msg_is_note_off = msg_status == NOTE_OFF;
+
+    msg_is_note_on ? new_delay_whole_notes = get_delay_from_note_on(msg2);
+    msg_is_note_off ? new_delay_whole_notes = 0.0;
+  );
+  
+  new_delay_whole_notes;
+);
+
+
+
+@slider
+
+slice_len = 1.0 / slice_values[slice_len_ix];
+
+
+
+@block
+
+delay_samps = get_delay_samps();
+bar_whole_notes = get_bar_whole_notes();
+
+// Process MIDI events
+while (midirecv(offset, msg1, msg2, msg3)) (
+  delay_whole_notes = get_delay_from_midi(msg1, msg2, msg3);
+  
+  // Pass MIDI thru
+  midisend(offset, msg1, msg2, msg3);
+);
+
+
+
+@sample
+
+// Write input to delay buffer
+buf_left[buf_pos] = spl0;
+buf_right[buf_pos] = spl1;
+
+// Calculate read position in delay buffer (with interpolation)
+read_pos = buf_pos - delay_samps;
+read_pos < 0 ? read_pos += max_delay_samps;
+
+// Get integer and fractional parts for interpolation
+read_pos_int = floor(read_pos);
+read_pos_frac = read_pos - read_pos_int;
+
+// Calculate next sample position for interpolation
+read_pos_next = read_pos_int + 1;
+read_pos_next >= max_delay_samps ? read_pos_next = 0;
+
+// Linear interpolation for smooth delay changes
+// delayed_sample = sample1 * (1 - frac) + sample2 * frac
+delayed_left = buf_left[read_pos_int] * (1 - read_pos_frac) + 
+               buf_left[read_pos_next] * read_pos_frac;
+
+delayed_right = buf_right[read_pos_int] * (1 - read_pos_frac) + 
+                buf_right[read_pos_next] * read_pos_frac;
+
+// Output delayed samples
+spl0 = delayed_left;
+spl1 = delayed_right;
+
+// Advance buffer position
+buf_pos += 1;
+buf_pos >= max_delay_samps ? buf_pos = 0;
