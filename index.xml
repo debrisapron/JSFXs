@@ -1,0 +1,5 @@
+<Ui>
+    <Package name="LiveSlice" author="debrisapron" version="0.2.0">
+        <Script name="LiveSlice" file="LiveSlice.jsfx" />
+    </Package>
+</Ui>
