@@ -1,19 +1,20 @@
-version: 0.2.2
+version: 0.2.3
 desc: LiveSlice
 author: debrisapron
 about: A Reaper JSFX effect for slicing live audio with midi control.
 
-slider1:midi_cha=0<0,16,1{All,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI Channel
+slider1:midi_cha=0<0,16,1{all,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}>MIDI Channel
 slider2:bottom_note_num=48<0,96,1>Bottom Note (48 = C3)
 slider3:slice_len_ix=2<0,6,1{1/32,1/24,1/16,1/12,1/8,1/6,1/4}>Slice Length
 slider4:mode=0<0,1,1{note → delay,note → slice}>Mode
+// slider5:noteoff_mode=0<0,1,1{bypass,gate}>Note-off Mode
 
 in_pin:left input
 in_pin:right input
 out_pin:left output
 out_pin:right output
 
-
+///////////////////////////////////////////////////////////////////////////////
 
 @init
 
@@ -27,8 +28,11 @@ delay_samps = 0;
 whole_note_secs = 0.0;
 whole_note_samps = 0; // Samples per whole note
 delay_whole_notes = 0.0; // Current delay in whole notes
-delay_samps = 0;
 slice_len = 1.0 / 16.0;
+//env_dir = -1;
+//env_vol = 0.0;
+is_note_on = 0;
+is_note_off = 0;
 
 slice_values = 1000;
 slice_values[0] = 32.0; // 1/32 note
@@ -47,7 +51,7 @@ buf_right = 2000 + max_delay_samps;
 memset(buf_left, 0, max_delay_samps);
 memset(buf_right, 0, max_delay_samps);
 
-
+///////////////////////////////////////////////////////////////////////////////
 
 function get_delay_samps() (
   
@@ -66,8 +70,6 @@ function get_delay_samps() (
   new_delay_samps;
 );
 
-
-
 function get_bar_whole_notes() (
   // Get time signature (default to 4/4 if not available)
   ts_num > 0 ? ts_num = ts_num : ts_num = 4.0;
@@ -80,18 +82,19 @@ function get_bar_whole_notes() (
   (ts_num * (4.0 / ts_denom)) / 4.0;
 );
 
-
-
 // Function to get modulo of two floating point numbers
 function fmod(value, divisor) (
   divisor == 0 ? 0 : (
   
     // This version preserves the sign of the dividend (like C's fmod)
-    value - (value / divisor > 0 ? floor(value / divisor) : ceil(value / divisor)) * divisor
+    
+    value - (
+      value / divisor > 0
+        ? floor(value / divisor)
+        : ceil(value / divisor)
+    ) * divisor
   );
 );
-
-
 
 function round_to_interval(val, inter) (
 
@@ -100,8 +103,6 @@ function round_to_interval(val, inter) (
     ? val
     : floor(val / inter + 0.5) * inter;
 );
-
-
 
 function get_delay_from_note_on(note_num) (
 
@@ -128,33 +129,33 @@ function get_delay_from_note_on(note_num) (
   delay_slices * slice_len;
 );
 
-
-
 function get_delay_from_midi(msg1, msg2, msg3) (
   new_delay_whole_notes = delay_whole_notes;
   msg_midi_cha = (msg1 % 16) + 1;
   msg_is_applicable = midi_cha == 0 || midi_cha == msg_midi_cha;
   
   msg_is_applicable ? (
-    msg_status = msg1 & 0xF0;
-    msg_vel = msg3;
-    msg_is_note_on = msg_status == NOTE_ON && msg_vel > 0;
-    msg_is_note_off = msg_status == NOTE_OFF;
-
-    msg_is_note_on ? new_delay_whole_notes = get_delay_from_note_on(msg2);
-    msg_is_note_off ? new_delay_whole_notes = 0.0;
+    is_note_on ? new_delay_whole_notes = get_delay_from_note_on(msg2);
+    is_note_off ? new_delay_whole_notes = 0.0;
   );
   
   new_delay_whole_notes;
 );
 
+function set_event_status(msg1) (
+  msg_status = msg1 & 0xF0;
+  msg_vel = msg3;
+  is_note_on = msg_status == NOTE_ON && msg_vel > 0;
+  is_note_off = msg_status == NOTE_OFF;
+);
 
+///////////////////////////////////////////////////////////////////////////////
 
 @slider
 
 slice_len = 1.0 / slice_values[slice_len_ix];
 
-
+///////////////////////////////////////////////////////////////////////////////
 
 @block
 
@@ -163,13 +164,25 @@ bar_whole_notes = get_bar_whole_notes();
 
 // Process MIDI events
 while (midirecv(offset, msg1, msg2, msg3)) (
+  set_event_status(msg1);
+  //is_note_on ? env = 1.0;
+  //is_note_off ? env = 0.0;
+
+  //is_note_on ? env_dir = 1;
+  //is_note_off ? env_dir = -1;
+//  env_dir == 1 ? (
+//    env = min(env + 0.1, 1.0);
+//  );
+//  env_dir == -1 ? (
+//    env = max(env - 0.1, 0.0);
+//  );
   delay_whole_notes = get_delay_from_midi(msg1, msg2, msg3);
   
   // Pass MIDI thru
   midisend(offset, msg1, msg2, msg3);
 );
 
-
+///////////////////////////////////////////////////////////////////////////////
 
 @sample
 
@@ -198,6 +211,13 @@ delayed_right = buf_right[read_pos_int] * (1 - read_pos_frac) +
                 buf_right[read_pos_next] * read_pos_frac;
 
 // Output delayed samples
+//env_dir == 1 ? (
+//  env_vol = min(env_vol + 0.1, 1.0);
+//);
+//env_dir == -1 ? (
+//  env_vol = max(env_vol - 0.1, 0.0);
+//);
+//gain = noteoff_mode == 0 ? 1.0 : env;
 spl0 = delayed_left;
 spl1 = delayed_right;
 
