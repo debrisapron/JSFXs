@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<index version="1" repository="debrisapron JSFXs">
+<index version="1" name="debrisapron JSFXs">
   <category name="Effects">
     <reapack name="LiveSlice" type="effect" desc="A Reaper JSFX effect for slicing live audio with midi control.">
       <metadata>
