@@ -1,4 +1,4 @@
-version: 0.2.3
+version: 0.2.4
 desc: LiveSlice
 author: debrisapron
 about: A Reaper JSFX effect for slicing live audio with midi control.

@@ -4,7 +4,7 @@ A Reaper JSFX effect for slicing live audio with midi control.
 
 ## Install
 
-With [ReaPack](https://reapack.com/).
+Import `https://raw.githubusercontent.com/debrisapron/JSFXs/refs/heads/main/index.xml` in [ReaPack](https://reapack.com/).
 
 ## Get Started
 

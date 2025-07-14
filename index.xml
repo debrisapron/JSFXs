@@ -5,7 +5,7 @@
       <metadata>
         <description><![CDATA[A Reaper JSFX effect for slicing live audio with midi control.]]></description>
       </metadata>
-      <version name="0.2.3" author="debrisapron">
+      <version name="0.2.4" author="debrisapron">
         <source main="main">https://github.com/debrisapron/JSFXs/raw/main/LiveSlice/LiveSlice.jsfx</source>
       </version>
     </reapack>
