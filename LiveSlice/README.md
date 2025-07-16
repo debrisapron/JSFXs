@@ -2,6 +2,8 @@
 
 A Reaper JSFX effect for slicing live audio with midi control.
 
+[![My Shitty LiveSlice video](https://img.youtube.com/vi/fYEMHs-0MTM/0.jpg)](https://www.youtube.com/watch?v=fYEMHs-0MTM)
+
 ## Install
 
 Import `https://raw.githubusercontent.com/debrisapron/JSFXs/refs/heads/main/index.xml` in [ReaPack](https://reapack.com/).
